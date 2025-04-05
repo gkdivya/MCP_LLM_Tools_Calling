@@ -1,0 +1,4 @@
+fastmcp>=0.1.0
+python-dotenv>=1.0.0
+google-generativeai>=0.3.0
+py-applescript>=1.0.0
