@@ -56,4 +56,9 @@ reverse 'Hello World' and create a Keynote slide with the reversed text
 - Python 3.9+
 - Google Gemini API access
 - MCP libraries
-- macOS with Keynote (for slide creation) 
+- macOS with Keynote (for slide creation)
+
+## References
+
+- [Gemini API - Function Calling](https://ai.google.dev/gemini-api/docs/function-calling?example=meeting) - Learn how to implement function calling with the Gemini API
+- [Gemini API - Structured Output](https://ai.google.dev/gemini-api/docs/structured-output?lang=rest) - Understand how to work with structured outputs in Gemini 
