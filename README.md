@@ -9,6 +9,27 @@ This project demonstrates how to:
 - Chain multiple tools together using LLM planning
 - Use Google's Gemini model to interpret natural language requests
 
+## Function Calling and Structured Prompting
+
+### Function Calling
+Function calling allows LLMs like Gemini to interact with external tools and APIs. Instead of generating text responses, the model:
+- Understands when to call specific functions
+- Provides necessary parameters to execute actions
+- Acts as a bridge between natural language and tool execution
+
+This project demonstrates how to use function calling to:
+- Access external tools defined in the MCP server
+- Transform user requests into structured function calls
+- Chain multiple function calls together for complex operations
+
+### Structured Prompting
+Structured prompting ensures consistent, predictable outputs from LLMs by:
+- Defining specific output formats (JSON, XML, etc.)
+- Constraining responses to follow predetermined structures
+- Enabling reliable parsing and processing of model outputs
+
+In this project, structured prompting helps ensure that function parameters are properly formatted and validated before execution.
+
 ## Components
 
 - `mcp_server.py` - MCP server with tools for:
@@ -22,6 +43,17 @@ This project demonstrates how to:
    ```
    python -m venv mcp
    source mcp/bin/activate
+   ```
+
+   Alternatively, you can use `uv` for faster dependency management:
+   ```
+   # Install uv if you don't have it
+   curl -sSf https://astral.sh/uv/install.sh | bash
+
+   # Create virtual environment and install dependencies
+   uv venv
+   source .venv/bin/activate
+   uv pip install -r requirements.txt
    ```
 
 2. Install requirements:
@@ -61,4 +93,4 @@ reverse 'Hello World' and create a Keynote slide with the reversed text
 ## References
 
 - [Gemini API - Function Calling](https://ai.google.dev/gemini-api/docs/function-calling?example=meeting) - Learn how to implement function calling with the Gemini API
-- [Gemini API - Structured Output](https://ai.google.dev/gemini-api/docs/structured-output?lang=rest) - Understand how to work with structured outputs in Gemini 
+- [Gemini API - Structured Output](https://ai.google.dev/gemini-api/docs/structured-output?lang=rest) - Understand how to work with structured outputs in Gemini
