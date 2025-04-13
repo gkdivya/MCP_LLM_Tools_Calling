@@ -33,7 +33,7 @@ logger.info(f"Loaded Google API key (first 4 chars): {GOOGLE_API_KEY[:4]}***")
 
 # Initialize Gemini - Use the same model as test_gmail_server.py
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')  # Changed to 1.5-flash from 2.0-flash
+model = genai.GenerativeModel('gemini-2.0-flash')  
 logger.info("Initialized Gemini model")
 
 def serialize_tools(tools):
@@ -91,6 +91,22 @@ async def execute_tool_chain(session, tool_plan):
             if result_key in results:
                 input_text = results[result_key]
                 logger.info(f"Using result from previous step: {input_text}")
+                
+                # If the result is a JSON string, try to extract the text content
+                try:
+                    # Check if it looks like a JSON string
+                    if isinstance(input_text, str) and input_text.strip().startswith("{"):
+                        result_json = json.loads(input_text)
+                        # Try to extract text from the JSON structure commonly returned by MCP tools
+                        if "content" in result_json and isinstance(result_json["content"], list):
+                            for item in result_json["content"]:
+                                if "text" in item:
+                                    input_text = item["text"]
+                                    logger.info(f"Extracted text from JSON result: {input_text}")
+                                    break
+                except (json.JSONDecodeError, TypeError, KeyError) as e:
+                    # If we can't parse or extract text, just use the original value
+                    logger.warning(f"Could not extract text from JSON result: {str(e)}")
             else:
                 logger.error(f"Referenced result {result_key} not found")
                 return f"Error: Referenced result {result_key} not found"
@@ -150,8 +166,8 @@ async def process_user_request(user_request: str) -> str:
                 If the request requires multiple steps or tool chaining, break it down.
                 
                 Format your response as a sequence of steps:
-                STEP 1: Use [tool_name] with input: [input_text]
-                STEP 2: Use [tool_name] with input: RESULT_1
+                STEP 1: [REASONING_TYPE] Use [tool_name] with input: [input_text]
+                STEP 2: [REASONING_TYPE] Use [tool_name] with input: RESULT_1
                 
                 For example:
                 - If the user asks to reverse text: "STEP 1: Use reverse_string with input: Hello World"
@@ -160,28 +176,85 @@ async def process_user_request(user_request: str) -> str:
                    STEP 2: Use create_keynote_slide with input: RESULT_1"
                 
                 Only include the steps required. If no tools are needed, respond with: "NO_TOOLS_NEEDED: [your helpful response]"
+                
+                After listing your steps, please verify:
+                - Each tool name exactly matches an available tool from the list
+                - Input formats match what each tool expects
+                - Step sequence is logical (outputs from one step properly feed into the next)
+                - Edge cases are handled appropriately
                 """
                 logger.info(f"\nSending prompt to LLM:\n{prompt}")
 
                 # Get LLM response - adapted from the working test_gmail_server.py implementation
                 logger.info("\nWaiting for LLM response...")
                 try:
-                    response = model.generate_content(prompt)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={
+                            "response_mime_type": "application/json",
+                            "response_schema": {
+                                "type": "OBJECT",
+                                "properties": {
+                                    "steps": {
+                                        "type": "ARRAY",
+                                        "items": {
+                                            "type": "OBJECT",
+                                            "properties": {
+                                                "step_number": {"type": "INTEGER"},
+                                                "tool_name": {"type": "STRING"},
+                                                "input": {"type": "STRING"}
+                                            },
+                                            "required": ["step_number", "tool_name", "input"]
+                                        }
+                                    },
+                                    "fallback_response": {"type": "STRING"}
+                                }
+                            }
+                        }
+                    )
                     logger.info(f"Got response from LLM: {response}")
                     
                     # Extract the response text
                     response_text = response.text.strip()
                     logger.info(f"LLM Response Text: {response_text}")
                     
-                    if response_text.startswith("NO_TOOLS_NEEDED:"):
-                        # Direct response without using tools
-                        direct_response = response_text.replace("NO_TOOLS_NEEDED:", "").strip()
-                        logger.info(f"LLM provided a direct response without tool usage: {direct_response}")
-                        return direct_response
-                    else:
-                        # Execute the tool chain plan
-                        result = await execute_tool_chain(session, response_text)
-                        return result
+                    # Parse the JSON response
+                    try:
+                        response_json = json.loads(response_text)
+                        
+                        # Handle fallback response if no tools are needed
+                        if "fallback_response" in response_json and response_json["fallback_response"]:
+                            direct_response = response_json["fallback_response"]
+                            logger.info(f"LLM provided a direct response without tool usage: {direct_response}")
+                            return direct_response
+                        
+                        # Process steps if available
+                        if "steps" in response_json and response_json["steps"]:
+                            # Format steps back into the expected format for execute_tool_chain
+                            formatted_steps = []
+                            for step in response_json["steps"]:
+                                formatted_steps.append(f"STEP {step['step_number']}: Use {step['tool_name']} with input: {step['input']}")
+                            
+                            # Join the steps with newlines for the execute_tool_chain function
+                            formatted_plan = "\n".join(formatted_steps)
+                            logger.info(f"Formatted tool plan: {formatted_plan}")
+                            
+                            # Execute the tool chain
+                            result = await execute_tool_chain(session, formatted_plan)
+                            return result
+                        else:
+                            return "No valid steps found in the LLM response."
+                    except json.JSONDecodeError:
+                        # If response is not valid JSON, try to process it as the original text format
+                        if response_text.startswith("NO_TOOLS_NEEDED:"):
+                            # Direct response without using tools
+                            direct_response = response_text.replace("NO_TOOLS_NEEDED:", "").strip()
+                            logger.info(f"LLM provided a direct response without tool usage: {direct_response}")
+                            return direct_response
+                        else:
+                            # Execute the tool chain plan as original format
+                            result = await execute_tool_chain(session, response_text)
+                            return result
                     
                 except Exception as e:
                     logger.error(f"Error in LLM processing: {str(e)}")

@@ -3,6 +3,7 @@
 
 # Virtual Environment
 mcp/
+mcp_venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
